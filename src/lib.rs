@@ -7,13 +7,10 @@ use quote::quote;
 #[proc_macro_derive(Getters, attributes(skip, copy))]
 #[proc_macro_error]
 pub fn getters(input: TokenStream) -> TokenStream {
-    // Parse the string representation
     let ast: DeriveInput = syn::parse(input).expect_or_abort("Couldn't parse for getters");
 
-    // Build the impl
     let gen = produce(&ast);
 
-    // Return the generated impl
     gen.into()
 }
 
@@ -33,7 +30,7 @@ fn produce(ast: &DeriveInput) -> TokenStream2 {
         }
     } else {
         // Nope. This is an Enum. We cannot handle these!
-        abort_call_site!("#[derive(Getters)] is only defined for structs, not for enums!");
+        abort_call_site!("#[derive(Getters)] is only supported for structs, not for enums!");
     }
 }
 
@@ -45,12 +42,6 @@ fn implement(field: &Field) -> TokenStream2 {
 
     let ty = field.ty.clone();
 
-    let attrs = field.attrs.iter().filter(|v| {
-        !v.parse_meta()
-            .map(|meta| meta.path().is_ident("skip") || meta.path().is_ident("copy"))
-            .unwrap_or(false)
-    });
-
     let attr = field
         .attrs
         .iter()
@@ -61,7 +52,6 @@ fn implement(field: &Field) -> TokenStream2 {
         // Generate nothing for skipped field.
         Some(meta) if meta.path.is_ident("skip") => quote! {},
         Some(meta) if meta.path.is_ident("copy") => quote! {
-            #(#attrs)*
             #[inline(always)]
             pub fn #fn_name(&self) -> #ty {
                 self.#fn_name
@@ -69,7 +59,6 @@ fn implement(field: &Field) -> TokenStream2 {
         },
         Some(meta) => abort!(meta.span(), "Invalid attribute, should be unreachable"),
         None => quote! {
-            #(#attrs)*
             #[inline(always)]
             pub fn #fn_name(&self) -> &#ty {
                 &self.#fn_name
